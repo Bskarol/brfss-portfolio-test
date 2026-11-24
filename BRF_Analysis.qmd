@@ -1,0 +1,585 @@
+---
+title: "Who Faces Financial Barriers to Healthcare?"
+subtitle: "An Analysis of the 2021 CDC BRFSS"
+format:
+  html:
+    embed-resources: true
+editor: visual
+---
+
+## Quarto
+
+Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+
+## Running Code
+
+When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+
+# Who Faces Financial Barriers to Healthcare?
+
+### An Analysis of the 2021 CDC Behavioral Risk Factor Surveillance System (BRFSS)
+
+## Project Overview
+
+This project investigates financial barriers to healthcare access among adults surveyed in the 2021 CDC Behavioral Risk Factor Surveillance System (BRFSS).
+
+The analysis focuses on respondents who reported needing to see a doctor within the past 12 months but being unable to do so because of cost.
+
+Using R, this project examines how educational attainment, employment status, self-reported general health, and access to a personal healthcare provider are associated with financial barriers to medical care.
+
+The project includes data cleaning, descriptive statistics, interactive data visualizations, logistic regression, and predictive modeling. Model performance will be evaluated using appropriate classification metrics, including ROC-AUC, precision, and recall.
+
+## Main Research Question
+
+**How are educational attainment, employment status, general health, and access to a personal healthcare provider associated with cost-related barriers to medical care, and how effectively can these characteristics predict which respondents report experiencing those barriers?**
+
+## Selected Variables
+
+-   **Outcome:** `MEDCOST1` — Unable to see a doctor because of cost.
+
+-   **Predictor 1:** `EDUCA` — Educational attainment.
+
+-   **Predictor 2:** `EMPLOY1` — Employment status.
+
+-   **Predictor 3:** `GENHLTH` — Self-reported general health.
+
+-   **Predictor 4:** `PERSDOC3` — Access to a personal healthcare provider.
+
+## Analytical Objectives
+
+1.  Explore differences in reported healthcare cost barriers across demographic and health-related groups.
+
+2.  Use logistic regression to examine associations between the selected predictors and healthcare cost barriers.
+
+3.  Evaluate the ability of the model to identify respondents reporting financial barriers to healthcare.
+
+4.  Discuss findings, predictive limitations, and implications for understanding healthcare access.
+
+```{r}
+1 + 1
+```
+
+You can add options to executable code like this
+
+```{r}
+#| echo: false
+2 * 2
+
+# 1. Project Introduction
+# 2. Research Objectives
+# 3. Data Dictionary
+# 4. Data Cleaning and Preparation
+# 5. Exploratory Data Analysis
+# 6. Logistic Regression
+# 7. Predictive Modeling and ROC-AUC
+# 8. Results and Discussion
+# 9. Limitations
+# 10. Conclusion
+```
+
+The `echo: false` option disables the printing of code (only output is displayed).
+
+```{r}
+setwd("/Users/briankarol/Desktop/MSDS/DTSC650/r4ds_original_repo")
+getwd()
+```
+
+```{r}
+brfss <- read.csv("brfss2021.csv")
+
+getwd()
+# Check the dataset dimensions
+dim(brfss)
+
+# install.packages("gt")
+# install.packages("dplyr")
+library(gt)
+library(dplyr)
+library(ggplot2)
+```
+
+### Dataset Overview
+
+```{r}
+# Create dataset overview
+dataset_overview <- data.frame(
+  Description = "Total Respondents",
+  Count = nrow(brfss)
+)
+
+# Format overview table
+dataset_overview_table <- dataset_overview |>
+  gt() |>
+  tab_header(
+    title = md("**Dataset Overview**"),
+    subtitle = "2021 CDC Behavioral Risk Factor Surveillance System"
+  ) |>
+  cols_label(
+    Description = "Description",
+    Count = "Count"
+  ) |>
+  fmt_number(
+    columns = Count,
+    decimals = 0
+  ) |>
+  cols_align(
+    align = "center"
+  ) |>
+  tab_options(
+    heading.title.font.size = px(18),
+    heading.subtitle.font.size = px(14),
+    table.font.size = px(13),
+    column_labels.font.weight = "bold"
+  )
+
+dataset_overview_table
+
+```
+
+### **Initial Data Exploration**
+
+```{r}
+# Examine healthcare cost barriers (outcome)
+table(brfss$MEDCOST1, useNA = "ifany")
+
+# Examine educational attainment
+table(brfss$EDUCA, useNA = "ifany")
+
+# Examine employment status
+table(brfss$EMPLOY1, useNA = "ifany")
+
+# Examine general health
+table(brfss$GENHLTH, useNA = "ifany")
+
+# Examine personal healthcare provider
+table(brfss$PERSDOC3, useNA = "ifany")
+```
+
+### Data Dictionary
+
+The analysis uses five variables from the 2021 CDC Behavioral Risk Factor Surveillance System (BRFSS). The table below describes each variable, its role in the analysis, and its valid response codes. Responses indicating uncertainty, refusal, or missing information will be treated as missing during data preparation.
+
+```{r}
+# Data Dictionary table style 
+data_dictionary_table_style <- function(table_style) { 
+  table_style |>
+    tab_options(
+      heading.title.font.size = px(20),
+      heading.subtitle.font.size = px(14),
+      table.font.size = px(12),
+      column_labels.font.size = px(14),
+      column_labels.font.weight = "bold",
+      row_group.font.size = px(13)
+    ) |>
+    cols_label(Original_Code = "Original Code",
+               New_Code = "New Code"
+    ) |>
+    cols_align(
+      align = "center"
+    ) |>
+    tab_style(
+      style = cell_text(align = "center"),
+      locations = cells_row_groups()
+) |>
+    tab_style(
+      style = cell_text(color = "forestgreen"),
+      locations = cells_body(
+        columns = Action,
+        rows = Action == "Keep"
+      )
+    ) |>
+    tab_style(
+      style = cell_text(color = "firebrick"),
+      locations = cells_body(
+        columns = Action,
+        rows = Action == "Exclude"
+      )
+    ) 
+}
+
+
+```
+
+```{r}
+
+# Data dictionary: Healthcare Cost Barriers (MEDCOST1)
+medcost_dictionary <- data.frame(
+  Original_Code = c("1", "2", "7", "9", "NA"),
+  New_Code = c("1", "0", "NA", "NA", "NA"),
+  Description = c("Yes", "No", "Don't know / Not sure", "Refused", "Missing"),
+  Action = c("Keep","Keep","Exclude","Exclude","Exclude")
+)
+
+# Data dictionary: Educational attainment (EDUCA)
+educa_dictionary <- data.frame(
+  Original_Code = c("1", "2", "3", "4", "5", "6", "9", "NA"),
+  New_Code = c("1", "2", "3", "4", "5", "6", "NA", "NA"),
+  Description = c("Never attended school or kindergarten only", "Grades 1 through 8", "Grades 9 through 11",
+                  "Grade 12 or GED (high school graduate)", "College 1 to 3 years (some college or technical school)",
+                  "College 4 years or more (college graduate)", "Refused", "Missing"),
+  Action = c(rep("Keep", 6), "Exclude", "Exclude")
+)
+
+# Data dictionary: Employment (EMPLOY1)
+employ_dictionary <- data.frame(
+  Original_Code = c("1", "2", "3", "4", "5", "6", "7", "8", "9", "NA"),
+  New_Code = c("1", "2", "3", "4", "5", "6", "7", "8", "NA", "NA"),
+  Description = c("Employed for wages", "Self-employed", "Out of work for 1 year or more",
+                  "Out of work for less than 1 year", "Homemaker", "Student", "Retired","Unable to work",
+                  "Refused", "Missing"),
+  Action = c(rep("Keep", 8), "Exclude", "Exclude")
+)
+
+# Data dictionary: General Health Status (GENHLTH)
+genhlth_dictionary <- data.frame(
+  Original_Code = c("1", "2", "3", "4", "5", "7", "9", "NA"),
+  New_Code = c("1", "2", "3", "4", "5", "NA", "NA", "NA"),
+  Description = c("Excellent", "Very good", "Good", "Fair", "Poor", 
+                  "Don't know / Not sure", "Refused", "Missing"),
+  Action = c(rep("Keep", 5), rep("Exclude", 3))
+)
+
+# Data dictionary: General Health Status (GENHLTH)
+persdoc_dictionary <- data.frame(
+  Original_Code = c("1", "2", "3", "7", "9", "NA"),
+  New_Code = c("1", "2", "3", "NA", "NA", "NA"),
+  Description = c("Yes, only one", "More than one", "No", 
+                  "Don't know / Not sure", "Refused", "Missing"),
+  Action = c(rep("Keep", 3), rep("Exclude", 3))
+)
+
+# Add variable identifiers and combine all five data dictionaries
+data_dictionary <- bind_rows(
+  medcost_dictionary |>
+    mutate(Variable = "MEDCOST1"),
+
+  educa_dictionary |>
+    mutate(Variable = "EDUCA"),
+
+  employ_dictionary |>
+    mutate(Variable = "EMPLOY1"),
+
+  genhlth_dictionary |>
+    mutate(Variable = "GENHLTH"),
+
+  persdoc_dictionary |>
+    mutate(Variable = "PERSDOC3")
+)
+
+```
+
+```{r}
+# Create a row group for each variable
+data_dictionary_gt <- data_dictionary |>
+  gt() |>
+    tab_header(
+      title = "Financial Barriers to Healthcare: Data Dictionary",
+      subtitle = "Survey Questions, Response Codes, and Data Cleaning Decisions"
+    ) |>
+    cols_hide(columns = Variable) |>
+     cols_label(
+      Original_Code = "Original Code",
+      New_Code = "New Code"
+    ) |>
+    tab_row_group(
+      label = md(
+        "**PERSDOC3 — Personal Healthcare Provider** \n\n*Do you have one person 
+        you think of as your personal doctor or healthcare provider?*"
+      ),
+      rows = Variable == "PERSDOC3"
+    ) |>
+  
+    tab_row_group(
+      label = md(
+        "**GENHLTH — General Health** \n\n*Would you say that 
+        in general your health is excellent, very good, good, fair, or poor?*"
+      ),
+      rows = Variable == "GENHLTH"
+    ) |>
+  
+    tab_row_group(
+      label = md(
+        "**EMPLOY1 — Employment Status** \n\n*Are you currently employed for 
+        wages, self-employed, out of work, a homemaker, a student, retired, or unable to work?*"
+      ),
+      rows = Variable == "EMPLOY1"
+    ) |>
+  
+    tab_row_group(
+      label = md(
+        "**EDUCA — Educational Attainment** \n\n*What is the highest grade or 
+        year of school you completed?*"
+      ),
+      rows = Variable == "EDUCA"
+    ) |>
+  
+    tab_row_group(
+      label = md(
+        "**MEDCOST1 — Healthcare Cost Barriers** \n\n*Was there a time in 
+        the past 12 months when you needed to see a doctor but could not because
+        you could not afford it?*"
+      ),
+      rows = Variable == "MEDCOST1"
+    ) |>
+    tab_source_note(
+      source_note = "Source: CDC Behavioral Risk Factor Surveillance System (BRFSS), 2021."
+  ) |>
+  
+  data_dictionary_table_style()
+
+# Save the table as an HTML file
+gt::gtsave(data_dictionary_gt, "data_dictionary_gt.html")
+
+# Open the table in your default web browser
+browseURL("data_dictionary_gt.html")
+
+
+```
+
+### **Response Availability by Variable (Before Data Cleaning)**
+
+```{r}
+# Step 1: Count unavailable responses for each variable
+response_availability <- brfss |>
+  summarise(
+    MEDCOST1 = sum(is.na(MEDCOST1) | MEDCOST1 %in% c(7, 9)),
+    EDUCA = sum(is.na(EDUCA) | EDUCA == 9),
+    EMPLOY1 = sum(is.na(EMPLOY1) | EMPLOY1 == 9),
+    GENHLTH = sum(is.na(GENHLTH) | GENHLTH %in% c(7, 9)),
+    PERSDOC3 = sum(is.na(PERSDOC3) | PERSDOC3 %in% c(7, 9))
+  )
+
+# Step 2: Create a summary data frame
+response_availability_summary <- data.frame(
+  Variable = c("MEDCOST1", "EDUCA", "EMPLOY1", "GENHLTH", "PERSDOC3"),
+  Total_Unavailable = c(
+    response_availability$MEDCOST1,
+    response_availability$EDUCA,
+    response_availability$EMPLOY1,
+    response_availability$GENHLTH,
+    response_availability$PERSDOC3
+  )
+)
+
+
+# Step 3: Calculate valid responses and percentages
+response_availability_summary <- response_availability_summary |>
+  mutate(
+    NA_Values = c(
+      sum(is.na(brfss$MEDCOST1)),
+      sum(is.na(brfss$EDUCA)),
+      sum(is.na(brfss$EMPLOY1)),
+      sum(is.na(brfss$GENHLTH)),
+      sum(is.na(brfss$PERSDOC3))
+    ),
+    Non_Substantive_Responses = Total_Unavailable - NA_Values,
+    Valid_Responses = nrow(brfss) - Total_Unavailable,
+    Percent_Unavailable = round(
+      Total_Unavailable / nrow(brfss) * 100, 2
+  )
+ )|>
+  select(Variable, Valid_Responses, NA_Values, Non_Substantive_Responses,
+         Total_Unavailable, Percent_Unavailable
+  )
+
+# Step 4: Add a total row for unavailable responses
+response_availability_summary <- response_availability_summary |>
+  bind_rows(
+    data.frame(
+      Variable = "Total",
+      Valid_Responses = NA_real_,
+      NA_Values = sum(response_availability_summary$NA_Values),
+      Non_Substantive_Responses = sum(
+        response_availability_summary$Non_Substantive_Responses
+      ),
+      Total_Unavailable = sum(response_availability_summary$Total_Unavailable),
+      Percent_Unavailable = NA_real_
+    )
+  )
+
+# Step 5: Create and format the response availability table
+response_availability_table <- response_availability_summary |>
+  gt() |>
+  tab_header(
+    title = md("**Response Availability by Variable (Before Data Cleaning)**"),
+    subtitle = "Unavailable responses include original missing values (NA), 'Don't know', and 'Refused' answers"
+  ) |>
+  cols_label(
+    Variable = "Variable",
+    Valid_Responses = "Valid Responses",
+    Total_Unavailable = "Total Unavailable",
+    Non_Substantive_Responses = "Don't Know / Refused",
+    NA_Values = "Missing (NA)",
+    Percent_Unavailable = "Unavailable (%)"
+) |>
+  fmt_number(
+    columns = c(
+      Valid_Responses,
+      NA_Values,
+      Non_Substantive_Responses,
+      Total_Unavailable
+  ),
+  decimals = 0
+) |>
+  fmt_number(
+    columns = Percent_Unavailable,
+    decimals = 2
+  ) |>
+  sub_missing(
+    columns = c(Valid_Responses, Percent_Unavailable),
+    missing_text = "-"
+  ) |>
+  cols_align(
+    align = "center"
+  ) |>
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_body(
+      rows = Variable == "Total"
+    )
+  ) |>
+  tab_options(
+  heading.title.font.size = px(20),
+  heading.subtitle.font.size = px(14),
+  table.font.size = px(12),
+  column_labels.font.size = px(14),
+  column_labels.font.weight = "bold"
+) |>
+  tab_source_note(
+    source_note = md(
+      "*Note: Total represents unavailable variable responses, not unique respondents.*"
+    )
+  )
+response_availability_table
+```
+
+Before data cleaning, response availability was assessed across the five variables selected for analysis. Employment status (EMPLOY1) had the highest proportion of unavailable responses (1.88%), while general health (GENHLTH) had the lowest (0.26%). Across all five variables, 16,959 unavailable responses were identified, including missing values and non-substantive answers. Because respondents could have unavailable responses for multiple variables, these counts do not represent unique individuals. A respondent-level retention analysis will be conducted to determine the final sample size for logistic regression.
+
+### **Data Cleaning and Recoding Variables**
+
+```{r}
+### Data Cleaning and Final Analytical Sample
+#### Identifying Complete Responses
+
+# Step 1: Count respondents with valid responses across all five variables
+complete_responses <- brfss |>
+  summarise(
+    Complete = sum(
+      MEDCOST1 %in% c(1, 2) &
+      EDUCA %in% 1:6 &
+      EMPLOY1 %in% 1:8 &
+      GENHLTH %in% 1:5 &
+      PERSDOC3 %in% 1:3
+    )
+  )
+
+# Step 2: Clean and recode the five model variables
+brfss_clean <- brfss |>
+  mutate(
+    MEDCOST1 = case_when(
+      MEDCOST1 == 1 ~ 1,
+      MEDCOST1 == 2 ~ 0,
+      TRUE ~ NA_real_
+    ),
+    EDUCA = case_when(
+      EDUCA %in% 1:6 ~ EDUCA
+    ),
+    EMPLOY1 = case_when(
+      EMPLOY1 %in% 1:8 ~ EMPLOY1
+    ),
+    GENHLTH = case_when(
+      GENHLTH %in% 1:5 ~ GENHLTH
+    ),
+    PERSDOC3 = case_when(
+      PERSDOC3 %in% 1:3 ~ PERSDOC3
+    )
+  )
+
+# Check number of respondents after recoding
+nrow(brfss_clean)
+
+# Examine cleaned healthcare cost barrier responses
+table(brfss_clean$MEDCOST1, useNA = "ifany")
+```
+
+### Respondent Retention Summary
+
+```{r}
+# Step 1: Calculate respondent retention
+respondent_retention <- brfss |>
+  summarise(
+    Total_Respondents = n(),
+    Retained_Respondents = complete_responses$Complete,
+    Excluded_Respondents = Total_Respondents - Retained_Respondents,
+    Percent_Retained = round(
+      Retained_Respondents / Total_Respondents * 100, 2
+    ),
+    Percent_Excluded = round(
+      Excluded_Respondents / Total_Respondents * 100, 2
+    )
+  )
+
+
+# Step 1: Arrange the calculated retention results
+retention_table <- data.frame(
+  Respondent_Status = c(
+    "Original Sample",
+    "Retained",
+    "Excluded"
+  ),
+  Respondents = c(
+    respondent_retention$Total_Respondents,
+    respondent_retention$Retained_Respondents,
+    respondent_retention$Excluded_Respondents
+  ),
+  Percentage = c(
+    100,
+    respondent_retention$Percent_Retained,
+    respondent_retention$Percent_Excluded
+  )
+)
+
+# Step 2: Format the table
+retention_table_gt <- retention_table |>
+  gt() |>
+  tab_header(
+    title = md("**Respondent Retention Summary**"),
+    subtitle = "2021 CDC BRFSS | Complete Responses Across Five Model Variables"
+  ) |>
+  cols_label(
+    Respondent_Status = "Respondent Status",
+    Respondents = "Respondents",
+    Percentage = "Percentage"
+  ) |>
+  fmt_number(
+    columns = Respondents,
+    decimals = 0
+  ) |>
+  fmt_percent(
+    columns = Percentage,
+    scale_values = FALSE,
+    decimals = 2
+  ) |>
+  cols_align(
+    align = "left",
+    columns = Respondent_Status
+  ) |>
+  cols_align(
+    align = "right",
+    columns = c(Respondents, Percentage)
+  ) |>
+  tab_options(
+    heading.title.font.size = px(18),
+    heading.subtitle.font.size = px(13),
+    table.font.size = px(13),
+    data_row.padding = px(10)
+  ) |>
+  tab_source_note(
+    source_note = md(
+      "*Note: Respondents with an unavailable response in one or more of the five model variables are counted once as excluded.*"
+    )
+  )
+
+# Step 3: Display the table
+retention_table_gt
+```
