@@ -7,3 +7,4 @@ Testing Quarto report formatting for my 2021 BRFSS analysis.
 |Retained          |      423461|      96.53|
 |Excluded          |       15232|       3.47|
 
+![Respondent Retention Summary](respondent_retention.png)
