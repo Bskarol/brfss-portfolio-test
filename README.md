@@ -8,3 +8,11 @@ Testing Quarto report formatting for my 2021 BRFSS analysis.
 |Excluded          |       15232|       3.47|
 
 ![Respondent Retention Summary](respondent_retention.png)
+
+|Original_Code |New_Code |Description           |Action  |
+|:-------------|:--------|:---------------------|:-------|
+|1             |1        |Yes                   |Keep    |
+|2             |0        |No                    |Keep    |
+|7             |NA       |Don't know / Not sure |Exclude |
+|9             |NA       |Refused               |Exclude |
+|NA            |NA       |Missing               |Exclude |
