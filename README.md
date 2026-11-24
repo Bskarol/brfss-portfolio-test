@@ -9,6 +9,8 @@ Testing Quarto report formatting for my 2021 BRFSS analysis.
 
 ![Respondent Retention Summary](respondent_retention.png)
 
+
+Employment Status (EMPLOY1)
 |Original_Code |New_Code |Description           |Action  |
 |:-------------|:--------|:---------------------|:-------|
 |1             |1        |Yes                   |Keep    |
